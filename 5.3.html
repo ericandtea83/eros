@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>不得好鼠拍賣系統 - V5.0 雲端聯網版</title>
+    <style>
+        :root {
+            --bg-body: #050507;
+            --bg-card: rgba(25, 25, 30, 0.95);
+            --accent-cyan: #00f2ff;
+            --accent-purple: #7000ff;
+            --text-main: #ffffff;
+            --text-dim: #88888e;
+            --danger: #ff4655;
+            --success: #00ff88;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            font-family: "Segoe UI", "Microsoft JhengHei", sans-serif;
+            margin: 0;
+            background-image: radial-gradient(circle at 20% 20%, #1a1a2e 0%, transparent 40%);
+            min-height: 100vh;
+        }
+
+        header { padding: 30px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        header h1 { font-size: 2.2rem; letter-spacing: 2px; background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; }
+
+        #auction-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 25px; padding: 30px; max-width: 1400px; margin: 0 auto; }
+
+        .card { background: var(--bg-card); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 24px; position: relative; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; }
+        .card:hover { border-color: var(--accent-cyan); box-shadow: 0 0 30px rgba(0,242,255,0.15); transform: translateY(-5px); }
+
+        .status-badge { position: absolute; top: 0; right: 0; padding: 6px 15px; font-size: 0.7rem; font-weight: bold; border-bottom-left-radius: 15px; text-transform: uppercase; letter-spacing: 1px; }
+        .st-upcoming { background: #333; color: #fff; }
+        .st-active { background: var(--accent-cyan); color: #000; box-shadow: 0 0 10px var(--accent-cyan); }
+        .st-ended { background: var(--danger); color: #fff; }
+
+        .item-name { font-size: 1.6rem; color: #fff; margin: 15px 0 5px 0; font-weight: 900; }
+        .timer { font-family: 'Courier New', Courier, monospace; font-size: 1.3rem; color: var(--danger); margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+        .timer::before { content: '●'; animation: blink 1s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        .price-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        .price-item { background: rgba(0,0,0,0.4); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); }
+        .price-label { font-size: 0.7rem; color: var(--text-dim); margin-bottom: 4px; text-transform: uppercase; }
+        .price-val { font-size: 1.2rem; font-weight: bold; color: var(--accent-cyan); }
+
+        .history-list { height: 90px; overflow-y: auto; background: rgba(0,0,0,0.2); border-radius: 10px; padding: 10px; font-size: 0.85rem; margin-bottom: 20px; border-left: 3px solid var(--accent-purple); }
+        .hist-entry { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+        .hist-user { color: #fff; font-weight: 600; }
+        .hist-amt { color: var(--success); }
+
+        .input-group { display: flex; gap: 10px; margin-bottom: 12px; }
+        input { background: #121216; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 10px; flex: 1; transition: 0.3s; }
+        input:focus { border-color: var(--accent-cyan); background: #1a1a20; outline: none; }
+        
+        .btn-bid { width: 100%; background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan)); color: #fff; border: none; padding: 14px; border-radius: 10px; font-weight: bold; cursor: pointer; transition: 0.3s; font-size: 1rem; }
+        .btn-bid:hover:not(:disabled) { filter: brightness(1.2); letter-spacing: 1px; }
+        .btn-bid:disabled { background: #222; color: #555; cursor: not-allowed; filter: none; }
+
+        #admin-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #15151a; padding: 30px; border: 1px solid var(--accent-cyan); z-index: 1001; width: 380px; border-radius: 24px; box-shadow: 0 0 100px #000; }
+        #admin-modal input { margin-bottom: 12px; width: 100%; box-sizing: border-box; }
+        .admin-del-btn { background: none; border: 1px solid var(--danger); color: var(--danger); width: 100%; padding: 8px; border-radius: 8px; cursor: pointer; margin-top: 15px; transition: 0.3s; }
+
+        footer { text-align: center; padding: 60px; color: var(--text-dim); font-size: 0.75rem; letter-spacing: 2px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<header><h1>不得好鼠拍賣系統 <small style="font-size: 0.8rem; opacity: 0.5;">V5.0 CLOUD</small></h1></header>
+
+<div id="auction-container"></div>
+
+<div id="admin-modal">
+    <h3 style="margin-top:0; color:var(--accent-cyan);">ITEM CONFIG</h3>
+    <input type="text" id="m-name" placeholder="商品名稱">
+    <input type="number" id="m-start-p" placeholder="起標金額">
+    <input type="number" id="m-min" placeholder="最小加價間隔">
+    <input type="number" id="m-buy" placeholder="直購價格">
+    <label style="font-size:0.7rem; color:var(--text-dim)">START TIME</label>
+    <input type="datetime-local" id="m-t1">
+    <label style="font-size:0.7rem; color:var(--text-dim)">END TIME</label>
+    <input type="datetime-local" id="m-t2">
+    <input type="text" id="m-contact" placeholder="聯繫資訊">
+    <button class="btn-bid" onclick="addItem()">DEPLOY ITEM</button>
+    <button onclick="toggleModal(false)" style="background:none; border:none; color:#555; width:100%; margin-top:10px; cursor:pointer">CANCEL</button>
+</div>
+
+<footer id="footer-access">TERMINAL ACCESS</footer>
+
+<!-- 載入 Firebase -->
+<script src="https://gstatic.com"></script>
+<script src="https://gstatic.com"></script>
+
+<script>
+    // Firebase 設定
+    const firebaseConfig = {
+        apiKey: "AIzaSyBp-Y-QSvCKanAW97wft0sRP0QNwGX0ifc",
+        authDomain: "://firebaseapp.com",
+        projectId: "mouse-auction-3f133",
+        storageBucket: "mouse-auction-3f133.firebasestorage.app",
+        messagingSenderId: "661952425648",
+        appId: "1:661952425648:web:35c19f3add6c5a9bf3d575",
+        databaseURL: "https://firebaseio.com"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const auctionRef = db.ref('auctions_v5');
+
+    let auctions = [];
+    let isAdmin = sessionStorage.getItem('isAdmin') === 'true';
+
+    // 監聽雲端數據
+    auctionRef.on('value', (snapshot) => {
+        auctions = snapshot.val() || [];
+        render();
+    });
+
+    function render() {
+        const container = document.getElementById('auction-container');
+        const savedName = localStorage.getItem('buyer_name') || "";
+        container.innerHTML = "";
+
+        auctions.forEach((item, index) => {
+            const now = Date.now();
+            const t1 = new Date(item.startTime).getTime();
+            const t2 = new Date(item.endTime).getTime();
+            let statusClass = 'st-upcoming', statusText = 'COMING SOON';
+
+            if (now > t2) { statusClass = 'st-ended'; statusText = 'CLOSED'; }
+            else if (now > t1) { statusClass = 'st-active'; statusText = 'LIVE'; }
+
+            const histHtml = (item.history || []).slice(-5).reverse().map(h => `
+                <div class="hist-entry"><span class="hist-user">${h.user}</span><span class="hist-amt">$${h.amount.toLocaleString()}</span></div>
+            `).join('');
+
+            const card = document.createElement('div');
+            card.className = "card";
+            card.innerHTML = `
+                <div class="status-badge ${statusClass}">${statusText}</div>
+                <div class="item-name">${item.name}</div>
+                <div class="timer" id="timer-${index}">--:--:--</div>
+                <div class="price-grid">
+                    <div class="price-item"><div class="price-label">Current Bid</div><div class="price-val">$${item.currentBid.toLocaleString()}</div></div>
+                    <div class="price-item"><div class="price-label">Buy Now</div><div class="price-val">$${item.buyNow.toLocaleString()}</div></div>
+                </div>
+                <div class="history-list">${histHtml || 'No Bids Yet'}</div>
+                <div class="input-group">
+                    <input type="text" id="user-${index}" placeholder="暱稱" value="${savedName}">
+                    <input type="number" id="val-${index}" placeholder="金額" value="${item.currentBid + item.minInc}">
+                </div>
+                <button class="btn-bid" onclick="placeBid(${index})" ${now < t1 || now > t2 ? 'disabled' : ''}>PLACE BID</button>
+                ${isAdmin ? `<button class="admin-del-btn" onclick="delItem(${index})">DELETE</button>` : ''}
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    function placeBid(index) {
+        const user = document.getElementById(`user-${index}`).value;
+        const amount = parseInt(document.getElementById(`val-${index}`).value);
+        const item = auctions[index];
+
+        if (!user) return alert("請輸入暱稱");
+        if (amount < item.currentBid + item.minInc) return alert("加價幅度不足");
+
+        localStorage.setItem('buyer_name', user);
+        item.currentBid = amount;
+        if (!item.history) item.history = [];
+        item.history.push({ user, amount, time: Date.now() });
+        auctionRef.set(auctions);
+    }
+
+    function tick() {
+        auctions.forEach((item, index) => {
+            const el = document.getElementById(`timer-${index}`);
+            if (!el) return;
+            const diff = new Date(item.endTime).getTime() - Date.now();
+            if (diff <= 0) return el.innerText = "ENDED";
+            const h = Math.floor(diff/3600000).toString().padStart(2,'0');
+            const m = Math.floor((diff%3600000)/60000).toString().padStart(2,'0');
+            const s = Math.floor((diff%60000)/1000).toString().padStart(2,'0');
+            el.innerText = `${h}:${m}:${s}`;
+        });
+    }
+
+    function toggleModal(s) { document.getElementById('admin-modal').style.display = s ? 'block' : 'none'; }
+    
+    document.getElementById('footer-access').onclick = () => {
+        if (prompt("ADMIN PWD") === "1234") {
+            sessionStorage.setItem('isAdmin', 'true');
+            location.reload();
+        }
+    };
+
+    function addItem() {
+        auctions.push({
+            name: document.getElementById('m-name').value,
+            currentBid: parseInt(document.getElementById('m-start-p').value),
+            minInc: parseInt(document.getElementById('m-min').value),
+            buyNow: parseInt(document.getElementById('m-buy').value),
+            startTime: document.getElementById('m-t1').value,
+            endTime: document.getElementById('m-t2').value,
+            history: []
+        });
+        auctionRef.set(auctions);
+        toggleModal(false);
+    }
+
+    function delItem(i) { if(confirm("Delete?")) { auctions.splice(i,1); auctionRef.set(auctions); } }
+
+    setInterval(tick, 1000);
+</script>
+</body>
+</html>
